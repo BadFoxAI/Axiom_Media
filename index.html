@@ -7,9 +7,9 @@
     <title>Axiom Media</title>
     <style>
         :root { --slate-bg: #f5f6f7; --slate-panel: #ffffff; --slate-border: #e1e4e8; --slate-text: #24292e; --slate-accent: #6a737d; }
-        body { background: var(--slate-bg); color: var(--slate-text); font-family: -apple-system, system-ui, sans-serif; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; -webkit-font-smoothing: antialiased; }
-        .container { width: 400px; background: var(--slate-panel); border: 1px solid var(--slate-border); padding: 48px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); text-align: center; }
-        .header { font-size: 11px; font-weight: 600; color: var(--slate-accent); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 32px; }
+        body { background: var(--slate-bg); color: var(--slate-text); font-family: -apple-system, sans-serif; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; -webkit-font-smoothing: antialiased; }
+        .container { width: 400px; background: var(--slate-panel); border: 1px solid var(--slate-border); padding: 48px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); text-align: center; }
+        .header { font-size: 10px; font-weight: 700; color: var(--slate-accent); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 32px; }
         .status { font-size: 13px; color: #586069; margin-bottom: 24px; height: 1.5em; }
         .progress-track { width: 100%; height: 2px; background: #eaecef; position: relative; overflow: hidden; }
         .progress-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background: var(--slate-accent); transition: width 0.4s ease; }
@@ -20,7 +20,7 @@
 
 <div class="container">
     <div class="header">Axiom Media System</div>
-    <div id="status" class="status">Initializing Substrate...</div>
+    <div id="status" class="status">Connecting to Substrate...</div>
     <div class="progress-track">
         <div id="bar" class="progress-fill"></div>
     </div>
@@ -36,62 +36,36 @@
         console.log(`[AXIOM] ${msg}`);
     };
 
-    async function runAutomatedTest() {
+    async function run() {
         await init();
         const substrate = new MediaSubstrate();
-        update("Connecting to Bridge", 20);
+        update("Requesting Secure Tunnel", 30);
 
         try {
-            // Using a high-reliability extraction bridge for Miss Kittin - 1982
-            const bridgeUrl = "https://api.cobalt.tools/api/json";
-            const response = await fetch(bridgeUrl, {
-                method: "POST",
-                headers: { "Content-Type": "application/json", "Accept": "application/json" },
-                body: JSON.stringify({
-                    url: "https://www.youtube.com/watch?v=2hs1wwuwc5I",
-                    downloadMode: "audio",
-                    audioFormat: "mp3",
-                    isAudioOnly: true
-                })
-            });
-
+            // We now fetch from OUR OWN domain. Browser allows this 100%.
+            const response = await fetch("/.netlify/functions/proxy");
             const data = await response.json();
-            if (!data.url) throw "Extraction Bridge Restricted";
-
-            update("Ingesting Stream", 50);
-            const mediaResponse = await fetch(data.url);
-            const reader = mediaResponse.body.getReader();
             
-            let receivedLength = 0;
-            let chunks = []; 
+            if (!data.url) throw "Tunnel Rejected Source";
 
-            // Stream processing into the Rust-managed logic
-            while(true) {
-                const {done, value} = await reader.read();
-                if (done) break;
-                chunks.push(value);
-                receivedLength += value.length;
-                // Pass to Rust Substrate (Mental Model: committing data to in-house buffer)
-                substrate.commit_to_buffer(value);
-                update("Syncing VFS", Math.min(50 + (receivedLength / 100000), 95));
-            }
-
-            const blob = new Blob(chunks, { type: 'audio/mp3' });
-            const url = URL.createObjectURL(blob);
+            update("Ingesting Stream", 60);
+            const mediaResponse = await fetch(data.url);
+            const blob = await mediaResponse.blob();
             
             update("System Ready", 100);
+            const url = URL.createObjectURL(blob);
             const player = document.getElementById('player');
             player.src = url;
             player.style.display = 'block';
             player.play();
 
         } catch (e) {
-            update("Source Connection Error", 0);
+            update("Tunnel Connection Failed", 0);
             console.error(e);
         }
     }
 
-    window.onload = runAutomatedTest;
+    window.onload = run;
 </script>
 </body>
 </html>
