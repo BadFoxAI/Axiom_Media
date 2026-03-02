@@ -1,0 +1,14 @@
+{
+  "name": "axiom_media",
+  "version": "0.1.0",
+  "files": [
+    "axiom_media_bg.wasm",
+    "axiom_media.js",
+    "axiom_media.d.ts"
+  ],
+  "module": "axiom_media.js",
+  "types": "axiom_media.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

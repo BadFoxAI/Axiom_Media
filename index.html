@@ -1,0 +1,25 @@
+
+<!DOCTYPE html>
+<html>
+<head><title>Axiom Media</title></head>
+<body style="background:#000; color:#00ffcc; font-family:monospace; padding:30px;">
+    <h1>AXIOM_MEDIA // VFS_SUBSTRATE</h1>
+    <div id="status">INITIALIZING CORE...</div>
+    <script type="module">
+        import init, { MediaKernel } from './pkg/axiom_media.js';
+        const log = m => document.getElementById('status').innerText = m;
+        
+        async function boot() {
+            const wasm = await init();
+            const worker = new Worker('vfs_worker.js');
+            worker.postMessage({ type: "INIT", name: "substrate.mp4" });
+            
+            worker.onmessage = (e) => {
+                if(e.data.status === "READY") log("CORE READY: VFS LINKED (OPFS)");
+                if(e.data.status === "WRITTEN") log("VFS COMMITTED: " + e.data.size + " BYTES");
+            };
+        }
+        boot();
+    </script>
+</body>
+</html>
