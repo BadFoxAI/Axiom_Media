@@ -4,97 +4,137 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Media System</title>
-    <!-- Standard UMD Loads -->
+    <title>Axiom Media // Dev Mode</title>
     <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
     <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
     <style>
-        body { background: #f0f1f3; color: #333; font-family: -apple-system, system-ui, sans-serif; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; -webkit-font-smoothing: antialiased; }
-        .stage { width: 480px; background: #ffffff; border: 1px solid #d1d5db; padding: 40px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        body { background: #f4f5f7; color: #333; font-family: -apple-system, system-ui, sans-serif; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column; }
+        .stage { width: 520px; background: #ffffff; border: 1px solid #dfe1e5; padding: 40px; border-radius: 2px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
         .label { font-size: 10px; font-weight: 700; color: #9ca3af; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 24px; text-align: center; }
-        .progress-track { width: 100%; height: 2px; background: #e5e7eb; margin: 32px 0; position: relative; }
-        .progress-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background: #4b5563; transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
-        .status-text { font-size: 13px; color: #6b7280; text-align: center; height: 1.5em; }
-        #audio-wrap { margin-top: 24px; display: none; opacity: 0; transition: opacity 1s; }
-        audio { width: 100%; height: 32px; filter: grayscale(1); }
+        .progress-track { width: 100%; height: 1px; background: #e5e7eb; margin: 32px 0; position: relative; }
+        .progress-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background: #4b5563; transition: width 0.3s; }
+        .status-text { font-size: 12px; color: #6b7280; text-align: center; font-variant-numeric: tabular-nums; }
+        
+        /* Debug Console On-Screen */
+        #dev-log { width: 520px; margin-top: 20px; font-family: monospace; font-size: 10px; color: #888; max-height: 150px; overflow-y: auto; line-height: 1.4; border-top: 1px solid #eee; padding-top: 10px; }
+        .log-entry { margin-bottom: 2px; border-left: 2px solid #eee; padding-left: 6px; }
+        .log-err { color: #cc0000; border-left-color: #cc0000; }
+        
+        #audio-wrap { margin-top: 24px; display: none; }
+        audio { width: 100%; height: 32px; filter: grayscale(1) contrast(0.5); }
     </style>
 </head>
 <body>
 
 <div class="stage">
-    <div class="label">Axiom Media System</div>
-    <div id="status" class="status-text">Synchronizing Engine...</div>
+    <div class="label">Axiom Media System // Verbose Dev</div>
+    <div id="status" class="status-text">SYSTEM_IDLE</div>
     <div class="progress-track">
         <div id="bar" class="progress-fill"></div>
     </div>
     <div id="audio-wrap">
-        <div style="font-size: 11px; color: #9ca3af; margin-bottom: 8px; text-align: center;">1982 - Miss Kittin & The Hacker</div>
         <audio id="player" controls></audio>
     </div>
 </div>
 
-<script>
-    // Robust library check to prevent ReferenceErrors
-    const getFFmpeg = () => {
-        if (typeof FFmpegWasm !== 'undefined') return FFmpegWasm;
-        if (typeof FFmpeg !== 'undefined') return FFmpeg;
-        return null;
-    };
+<div id="dev-log"></div>
 
-    const update = (msg, percent) => {
-        document.getElementById('status').innerText = msg;
+<script>
+    const logDiv = document.getElementById('dev-log');
+    
+    // VERBOSE REPORTING FUNCTION
+    function report(msg, type = 'info') {
+        const time = new Date().toISOString().split('T')[1].split('Z')[0];
+        const entry = document.createElement('div');
+        entry.className = 'log-entry' + (type === 'err' ? ' log-err' : '');
+        entry.innerText = `[${time}] ${msg}`;
+        logDiv.prepend(entry);
+        
+        // Also log to browser console for deep inspection
+        if (type === 'err') console.error(`[AXIOM_FAIL] ${msg}`);
+        else console.log(`[AXIOM_REPORT] ${msg}`);
+    }
+
+    const updateUI = (msg, percent) => {
+        document.getElementById('status').innerText = msg.toUpperCase();
         document.getElementById('bar').style.width = percent + '%';
+        report(msg);
     };
 
     async function start() {
-        const lib = getFFmpeg();
-        if (!lib) {
-            setTimeout(start, 100); // Retry if script not parsed yet
+        report("SYSTEM_BOOT_SEQUENCE_START");
+
+        if (typeof FFmpegWasm === 'undefined') {
+            report("CRITICAL_FAIL: FFmpegWasm Script not loaded from CDN", "err");
             return;
         }
 
-        const { FFmpeg } = lib;
+        const { FFmpeg } = FFmpegWasm;
         const { fetchFile } = FFmpegUtil;
         const ffmpeg = new FFmpeg();
 
+        // CAPTURE INTERNAL FFMPEG STDOUT/ERR
+        ffmpeg.on('log', ({ message }) => report(`FFMPEG_CORE: ${message}`));
+        ffmpeg.on('progress', ({ progress }) => {
+            const p = Math.round(progress * 100);
+            document.getElementById('bar').style.width = (75 + (p * 0.25)) + '%';
+        });
+
         try {
-            update("Connecting to Source", 20);
-            
-            // Calling the bridge for Miss Kittin - 1982
-            const bridge = await fetch("https://co.wuk.sh/api/json", {
-                method: "POST",
-                headers: { "Content-Type": "application/json", "Accept": "application/json" },
-                body: JSON.stringify({ url: "https://www.youtube.com/watch?v=2hs1wwuwc5I", downloadMode: "audio" })
-            });
-            
-            const stream = await bridge.json();
-            if(!stream.url) throw "Stream Unavailable";
-
-            update("Ingesting Substrate", 45);
-            const blob = await fetch(stream.url).then(r => r.blob());
-
-            update("Transcoding to MP3", 75);
+            updateUI("Initializing Engine", 10);
             await ffmpeg.load({
                 coreURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js',
             });
+            report("FFMPEG_WASM_READY");
+
+            updateUI("Requesting Bridge Access", 25);
+            const bridgeRequest = { 
+                url: "https://www.youtube.com/watch?v=2hs1wwuwc5I", 
+                downloadMode: "audio",
+                format: "mp3"
+            };
+            report(`BRIDGE_POST: ${JSON.stringify(bridgeRequest)}`);
+
+            const bridge = await fetch("https://co.wuk.sh/api/json", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                body: JSON.stringify(bridgeRequest)
+            });
             
-            await ffmpeg.writeFile('in', await fetchFile(blob));
-            await ffmpeg.exec(['-i', 'in', '-b:a', '192k', 'out.mp3']);
+            if (!bridge.ok) throw `Bridge Error: ${bridge.status} ${bridge.statusText}`;
             
+            const stream = await bridge.json();
+            report(`BRIDGE_RESPONSE: status=${stream.status} url=${stream.url ? 'FOUND' : 'MISSING'}`);
+            
+            if(!stream.url) throw `Source URL missing in response: ${JSON.stringify(stream)}`;
+
+            updateUI("Downloading Stream", 50);
+            report("FETCHING_RAW_BLOB_FROM_TUNNEL");
+            const response = await fetch(stream.url);
+            if (!response.ok) throw `Stream download failed: ${response.status}`;
+            const blob = await response.blob();
+            report(`BLOB_INGESTED: size=${blob.size} type=${blob.type}`);
+
+            updateUI("Transcoding Substrate", 75);
+            await ffmpeg.writeFile('in_file', await fetchFile(blob));
+            
+            report("EXECUTING_FFMPEG_TRANSCODE_CMD");
+            await ffmpeg.exec(['-i', 'in_file', '-b:a', '192k', 'out.mp3']);
+            
+            report("READING_VFS_OUTPUT");
             const data = await ffmpeg.readFile('out.mp3');
-            const url = URL.createObjectURL(new Blob([data.buffer], { type: 'audio/mp3' }));
             
+            const url = URL.createObjectURL(new Blob([data.buffer], { type: 'audio/mp3' }));
             const player = document.getElementById('player');
             player.src = url;
             
-            update("Processing Complete", 100);
+            updateUI("Ready for Playback", 100);
             document.getElementById('audio-wrap').style.display = 'block';
-            setTimeout(() => { document.getElementById('audio-wrap').style.opacity = '1'; }, 100);
-            player.play();
+            player.play().then(() => report("PLAYBACK_STARTED")).catch(e => report("AUTOPLAY_MUTED_BY_BROWSER", "err"));
 
         } catch (e) {
-            update("System Idle", 0);
-            console.error(e);
+            updateUI("Process Halted", 0);
+            report(`FATAL_EXCEPTION: ${e}`, "err");
         }
     }
 
