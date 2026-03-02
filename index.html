@@ -5,30 +5,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Axiom Media // Dev Mode</title>
-    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
-    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
     <style>
-        body { background: #f4f5f7; color: #333; font-family: -apple-system, system-ui, sans-serif; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column; }
-        .stage { width: 520px; background: #ffffff; border: 1px solid #dfe1e5; padding: 40px; border-radius: 2px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        body { background: #f0f1f3; color: #1a1c1e; font-family: -apple-system, system-ui, sans-serif; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column; }
+        .stage { width: 480px; background: #ffffff; border: 1px solid #d1d5db; padding: 40px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
         .label { font-size: 10px; font-weight: 700; color: #9ca3af; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 24px; text-align: center; }
-        .progress-track { width: 100%; height: 1px; background: #e5e7eb; margin: 32px 0; position: relative; }
-        .progress-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background: #4b5563; transition: width 0.3s; }
-        .status-text { font-size: 12px; color: #6b7280; text-align: center; font-variant-numeric: tabular-nums; }
+        .progress-track { width: 100%; height: 2px; background: #e5e7eb; margin: 32px 0; position: relative; }
+        .progress-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background: #4b5563; transition: width 0.4s cubic-bezier(0.1, 0.7, 0.1, 1); }
+        .status-text { font-size: 13px; color: #6b7280; text-align: center; height: 1.5em; font-weight: 400; }
         
-        /* Debug Console On-Screen */
-        #dev-log { width: 520px; margin-top: 20px; font-family: monospace; font-size: 10px; color: #888; max-height: 150px; overflow-y: auto; line-height: 1.4; border-top: 1px solid #eee; padding-top: 10px; }
-        .log-entry { margin-bottom: 2px; border-left: 2px solid #eee; padding-left: 6px; }
-        .log-err { color: #cc0000; border-left-color: #cc0000; }
+        #dev-log { width: 480px; margin-top: 24px; font-family: "SF Mono", "Roboto Mono", monospace; font-size: 10px; color: #999; max-height: 120px; overflow-y: auto; line-height: 1.5; border-top: 1px solid #e5e7eb; padding-top: 12px; }
+        .log-entry { margin-bottom: 3px; border-left: 1px solid #e5e7eb; padding-left: 8px; }
+        .log-err { color: #d32f2f; border-left-color: #d32f2f; }
         
         #audio-wrap { margin-top: 24px; display: none; }
-        audio { width: 100%; height: 32px; filter: grayscale(1) contrast(0.5); }
+        audio { width: 100%; height: 36px; filter: grayscale(1) opacity(0.8); }
     </style>
 </head>
 <body>
 
 <div class="stage">
-    <div class="label">Axiom Media System // Verbose Dev</div>
-    <div id="status" class="status-text">SYSTEM_IDLE</div>
+    <div class="label">Axiom Media // ESM Substrate</div>
+    <div id="status" class="status-text">Booting Engine...</div>
     <div class="progress-track">
         <div id="bar" class="progress-fill"></div>
     </div>
@@ -39,106 +36,88 @@
 
 <div id="dev-log"></div>
 
-<script>
+<script type="module">
+    // Using direct ESM imports to avoid "FFmpegWasm is undefined"
+    import { FFmpeg } from 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/+esm';
+    import { fetchFile, toBlobURL } from 'https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/+esm';
+
     const logDiv = document.getElementById('dev-log');
     
-    // VERBOSE REPORTING FUNCTION
     function report(msg, type = 'info') {
         const time = new Date().toISOString().split('T')[1].split('Z')[0];
         const entry = document.createElement('div');
         entry.className = 'log-entry' + (type === 'err' ? ' log-err' : '');
         entry.innerText = `[${time}] ${msg}`;
         logDiv.prepend(entry);
-        
-        // Also log to browser console for deep inspection
-        if (type === 'err') console.error(`[AXIOM_FAIL] ${msg}`);
-        else console.log(`[AXIOM_REPORT] ${msg}`);
+        console.log(`[AXIOM_${type.toUpperCase()}] ${msg}`);
     }
 
     const updateUI = (msg, percent) => {
-        document.getElementById('status').innerText = msg.toUpperCase();
+        document.getElementById('status').innerText = msg;
         document.getElementById('bar').style.width = percent + '%';
         report(msg);
     };
 
     async function start() {
-        report("SYSTEM_BOOT_SEQUENCE_START");
-
-        if (typeof FFmpegWasm === 'undefined') {
-            report("CRITICAL_FAIL: FFmpegWasm Script not loaded from CDN", "err");
-            return;
-        }
-
-        const { FFmpeg } = FFmpegWasm;
-        const { fetchFile } = FFmpegUtil;
+        report("ENGINE_INITIALIZING");
         const ffmpeg = new FFmpeg();
 
-        // CAPTURE INTERNAL FFMPEG STDOUT/ERR
-        ffmpeg.on('log', ({ message }) => report(`FFMPEG_CORE: ${message}`));
+        // FFmpeg Telemetry
+        ffmpeg.on('log', ({ message }) => report(`CORE: ${message}`));
         ffmpeg.on('progress', ({ progress }) => {
-            const p = Math.round(progress * 100);
-            document.getElementById('bar').style.width = (75 + (p * 0.25)) + '%';
+            const p = Math.round(75 + (progress * 25));
+            document.getElementById('bar').style.width = p + '%';
         });
 
         try {
-            updateUI("Initializing Engine", 10);
-            await ffmpeg.load({
-                coreURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js',
-            });
-            report("FFMPEG_WASM_READY");
+            updateUI("Loading Codecs", 15);
+            const coreURL = await toBlobURL('https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.js', 'text/javascript');
+            const wasmURL = await toBlobURL('https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.wasm', 'application/wasm');
+            
+            await ffmpeg.load({ coreURL, wasmURL });
+            report("WASM_LOAD_SUCCESS");
 
-            updateUI("Requesting Bridge Access", 25);
-            const bridgeRequest = { 
-                url: "https://www.youtube.com/watch?v=2hs1wwuwc5I", 
-                downloadMode: "audio",
-                format: "mp3"
-            };
-            report(`BRIDGE_POST: ${JSON.stringify(bridgeRequest)}`);
-
+            updateUI("Handshaking Bridge", 30);
             const bridge = await fetch("https://co.wuk.sh/api/json", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "Accept": "application/json" },
-                body: JSON.stringify(bridgeRequest)
+                body: JSON.stringify({ 
+                    url: "https://www.youtube.com/watch?v=2hs1wwuwc5I", 
+                    downloadMode: "audio",
+                    audioFormat: "mp3"
+                })
             });
             
-            if (!bridge.ok) throw `Bridge Error: ${bridge.status} ${bridge.statusText}`;
-            
             const stream = await bridge.json();
-            report(`BRIDGE_RESPONSE: status=${stream.status} url=${stream.url ? 'FOUND' : 'MISSING'}`);
-            
-            if(!stream.url) throw `Source URL missing in response: ${JSON.stringify(stream)}`;
+            if(!stream.url) throw `Source rejected: ${JSON.stringify(stream)}`;
 
-            updateUI("Downloading Stream", 50);
-            report("FETCHING_RAW_BLOB_FROM_TUNNEL");
+            updateUI("Streaming to VFS", 50);
             const response = await fetch(stream.url);
-            if (!response.ok) throw `Stream download failed: ${response.status}`;
             const blob = await response.blob();
-            report(`BLOB_INGESTED: size=${blob.size} type=${blob.type}`);
+            report(`VFS_INGEST: ${blob.size} bytes`);
 
-            updateUI("Transcoding Substrate", 75);
-            await ffmpeg.writeFile('in_file', await fetchFile(blob));
+            updateUI("Processing Substrate", 75);
+            await ffmpeg.writeFile('in', await fetchFile(blob));
+            await ffmpeg.exec(['-i', 'in', '-b:a', '192k', 'out.mp3']);
             
-            report("EXECUTING_FFMPEG_TRANSCODE_CMD");
-            await ffmpeg.exec(['-i', 'in_file', '-b:a', '192k', 'out.mp3']);
-            
-            report("READING_VFS_OUTPUT");
+            report("GENERATING_PLAYBACK_BLOB");
             const data = await ffmpeg.readFile('out.mp3');
-            
             const url = URL.createObjectURL(new Blob([data.buffer], { type: 'audio/mp3' }));
+            
             const player = document.getElementById('player');
             player.src = url;
             
-            updateUI("Ready for Playback", 100);
+            updateUI("Active // Playing", 100);
             document.getElementById('audio-wrap').style.display = 'block';
-            player.play().then(() => report("PLAYBACK_STARTED")).catch(e => report("AUTOPLAY_MUTED_BY_BROWSER", "err"));
+            player.play().catch(() => report("USER_GATED: Click to hear audio"));
 
         } catch (e) {
-            updateUI("Process Halted", 0);
-            report(`FATAL_EXCEPTION: ${e}`, "err");
+            updateUI("Engine Failure", 0);
+            report(`ERROR: ${e}`, "err");
         }
     }
 
-    window.onload = start;
+    window.addEventListener('load', start);
 </script>
 </body>
 </html>
