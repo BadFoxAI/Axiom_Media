@@ -4,136 +4,102 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Axiom Media</title>
+    <title>Axiom Media System</title>
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
+    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
     <style>
-        :root { --slate: #1a1c1e; --neutral-grey: #2d2f31; --border: #3f4144; --text: #e1e3e5; --accent: #90a4ae; }
-        body { background: var(--slate); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+        :root { --bg: #f8f9fa; --panel: #ffffff; --text: #212529; --accent: #6c757d; --border: #dee2e6; }
+        body { background: var(--bg); color: var(--text); font-family: -apple-system, sans-serif; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; }
         
-        .workspace { width: 100%; max-width: 900px; padding: 40px 20px; box-sizing: border-box; }
+        .system-frame { width: 100%; max-width: 600px; padding: 40px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 2px 15px rgba(0,0,0,0.05); text-align: center; }
         
-        /* Neutral Header */
-        .header { border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-end; }
-        .title { font-size: 14px; font-weight: 600; letter-spacing: 2px; color: var(--accent); }
-        .status-dot { font-size: 10px; color: #666; text-transform: uppercase; }
-
-        /* Professional Player Area */
-        .viewer-container { width: 100%; background: #000; border-radius: 4px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.4); margin-bottom: 30px; aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center; }
-        video { width: 100%; height: 100%; outline: none; }
-
-        /* Library List (Neutral Slate) */
-        .library-shelf { width: 100%; }
-        .item { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--neutral-grey); border: 1px solid var(--border); margin-bottom: 8px; border-radius: 4px; transition: background 0.2s; }
-        .item:hover { background: #37393b; }
-        .item-info { font-size: 13px; }
-        .item-meta { font-size: 11px; color: #777; margin-top: 4px; }
+        .status-label { font-size: 11px; font-weight: 700; color: var(--accent); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 20px; }
         
-        /* Control Buttons */
-        .action-area { display: flex; gap: 8px; }
-        .btn { padding: 6px 14px; font-size: 11px; border-radius: 3px; cursor: pointer; border: 1px solid var(--border); background: var(--slate); color: var(--text); text-transform: uppercase; transition: all 0.2s; }
-        .btn:hover { background: var(--accent); color: var(--slate); border-color: var(--accent); }
+        /* Minimalist Progress */
+        .progress-container { width: 100%; height: 4px; background: var(--border); border-radius: 2px; margin: 30px 0; overflow: hidden; }
+        .progress-fill { height: 100%; width: 0%; background: var(--accent); transition: width 0.3s ease; }
         
-        /* Auto-Loader Progress */
-        .load-bar { position: fixed; top: 0; left: 0; height: 2px; width: 0%; background: var(--accent); transition: width 0.4s; }
+        .info-text { font-size: 14px; color: #495057; height: 20px; }
+        
+        audio { width: 100%; margin-top: 20px; display: none; }
+        
+        /* Hidden UI elements for the automated test */
+        #media-output { margin-top: 20px; border-top: 1px solid var(--border); padding-top: 20px; display: none; }
     </style>
 </head>
 <body>
 
-<div class="load-bar" id="loadBar"></div>
-
-<div class="workspace">
-    <div class="header">
-        <div class="title">AXIOM_MEDIA // VFS_SUBSTRATE</div>
-        <div class="status-dot" id="sysStatus">Initializing...</div>
+<div class="system-frame">
+    <div class="status-label">Axiom Media // Automated Processing</div>
+    
+    <div id="info" class="info-text">Initializing Engine...</div>
+    
+    <div class="progress-container">
+        <div id="progress" class="progress-fill"></div>
     </div>
 
-    <div class="viewer-container">
-        <video id="mainPlayer" controls playsinline muted></video>
-    </div>
-
-    <div class="library-shelf">
-        <div id="fileList"></div>
+    <div id="media-output">
+        <div style="font-size: 13px; margin-bottom: 10px; color: #6c757d;">EXTRACTED AUDIO: MISS KITTIN - 1982</div>
+        <audio id="audioPlayer" controls></audio>
     </div>
 </div>
 
 <script type="module">
-    const worker = new Worker('vfs_worker.js');
-    const player = document.getElementById('mainPlayer');
-    const sysStatus = document.getElementById('sysStatus');
-    const loadBar = document.getElementById('loadBar');
-    const TEST_URL = "https://download.samplelib.com/mp4/sample-5s.mp4";
-
-    function updateStatus(msg, progress) {
-        sysStatus.innerText = msg;
-        if(progress) loadBar.style.width = progress + "%";
-    }
-
-    worker.onmessage = async (e) => {
-        if (e.data.type === "LIBRARY_LIST") {
-            renderLibrary(e.data.files);
-        }
-        if (e.data.type === "SYNC_COMPLETE") {
-            updateStatus("VFS_SYNC_READY", 100);
-            setTimeout(() => loadBar.style.width = "0%", 1000);
-            autoPlay(e.data.name);
-            refresh();
-        }
-        if (e.data.type === "DELETE_COMPLETE") refresh();
+    import init from './pkg/axiom_media.js';
+    
+    const { FFmpeg } = FFmpegWasm;
+    const { fetchFile } = FFmpegUtil;
+    
+    const log = (msg, p) => {
+        document.getElementById('info').innerText = msg;
+        document.getElementById('progress').style.width = p + "%";
     };
 
-    async function autoPlay(name) {
-        const root = await navigator.storage.getDirectory();
-        const handle = await root.getFileHandle(name);
-        const file = await handle.getFile();
-        player.src = URL.createObjectURL(file);
-        player.muted = false; // Unmute for test if browser allows
-        player.play().catch(err => console.log("Autoplay waiting for interaction"));
-    }
-
-    function renderLibrary(files) {
-        const container = document.getElementById('fileList');
-        container.innerHTML = files.length ? "" : "<div style='color:#555; font-size:12px;'>VFS EMPTY</div>";
-        files.forEach(file => {
-            const div = document.createElement('div');
-            div.className = 'item';
-            div.innerHTML = `
-                <div class="item-info">
-                    <div>${file.name}</div>
-                    <div class="item-meta">${(file.size/1024/1024).toFixed(2)} MB // RAW_DATA</div>
-                </div>
-                <div class="action-area">
-                    <button class="btn" onclick="playNative('${file.name}')">Stream</button>
-                    <button class="btn" onclick="remove('${file.name}')">Purge</button>
-                </div>
-            `;
-            container.appendChild(div);
-        });
-    }
-
-    window.playNative = async (name) => { autoPlay(name); };
-    window.remove = (name) => { worker.postMessage({ type: "DELETE", name }); };
-    function refresh() { worker.postMessage({ type: "LIST" }); }
-
-    // AUTO-INGEST LOGIC
-    async function initAxiom() {
-        updateStatus("POLLING_REMOTE", 10);
+    async function runTest() {
+        await init();
+        const ffmpeg = new FFmpeg();
+        
+        // 1. Fetching via a specialized YouTube-friendly bridge
+        log("CONNECTING TO SOURCE...", 20);
+        
         try {
-            const resp = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent(TEST_URL));
-            updateStatus("STREAM_INGEST", 40);
-            const blob = await resp.blob();
-            updateStatus("WRITING_VFS", 70);
-            worker.postMessage({ 
-                type: "WRITE", 
-                name: "test_auto_capture.mp4", 
-                payload: await blob.arrayBuffer() 
+            // Using a public Cobalt instance for the bridge (Reliable for YT media streams)
+            const response = await fetch("https://co.wuk.sh/api/json", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                body: JSON.stringify({ url: "https://www.youtube.com/watch?v=2hs1wwuwc5I", downloadMode: "audio" })
             });
-        } catch(e) {
-            updateStatus("SOURCE_OFFLINE", 0);
+            
+            const data = await response.json();
+            if(!data.url) throw new Error("Bridge refused stream");
+
+            log("INGESTING MEDIA STREAM...", 40);
+            const mediaBlob = await fetch(data.url).then(r => r.blob());
+            
+            log("CONVERTING TO MP3...", 70);
+            if(!ffmpeg.loaded) await ffmpeg.load();
+            await ffmpeg.writeFile('input', await fetchFile(mediaBlob));
+            
+            // Standardizing to high-quality MP3
+            await ffmpeg.exec(['-i', 'input', '-b:a', '192k', 'output.mp3']);
+            const audioData = await ffmpeg.readFile('output.mp3');
+            
+            // Playback
+            const audioUrl = URL.createObjectURL(new Blob([audioData.buffer], { type: 'audio/mp3' }));
+            const player = document.getElementById('audioPlayer');
+            player.src = audioUrl;
+            
+            document.getElementById('media-output').style.display = 'block';
+            log("SYSTEM_READY // PLAYING", 100);
+            player.play();
+
+        } catch (err) {
+            log("SOURCE_CONNECTION_ERROR", 0);
+            console.error(err);
         }
     }
 
-    // Kick off
-    refresh();
-    initAxiom();
+    runTest();
 </script>
 </body>
 </html>
