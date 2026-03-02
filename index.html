@@ -4,106 +4,129 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Axiom Media Engine</title>
-    <!-- Load FFmpeg.wasm from CDN -->
-    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
-    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+    <title>Axiom Media Library</title>
     <style>
-        body { background: #080808; color: #00ffaa; font-family: 'Segoe UI', monospace; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        .container { width: 90%; max-width: 500px; text-align: center; border: 1px solid #111; padding: 40px; border-radius: 12px; background: #0d0d0d; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        input { width: 100%; padding: 15px; background: #151515; border: 1px solid #222; border-radius: 8px; color: #fff; margin-bottom: 20px; box-sizing: border-box; font-size: 16px; outline: none; transition: 0.3s; }
-        input:focus { border-color: #00ffaa; box-shadow: 0 0 10px #00ffaa33; }
-        .btn-group { display: flex; gap: 10px; }
-        button { flex: 1; padding: 15px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; transition: 0.2s; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
-        .btn-vid { background: #00ffaa; color: #000; }
-        .btn-aud { background: transparent; color: #00ffaa; border: 1px solid #00ffaa; }
-        button:hover { opacity: 0.8; transform: translateY(-2px); }
-        #status { margin-top: 25px; font-size: 12px; color: #666; letter-spacing: 1px; }
-        .progress-bar { height: 2px; width: 0%; background: #00ffaa; margin-top: 10px; transition: 0.3s; }
+        :root { --glow: #00ffaa; --bg: #050505; }
+        body { background: var(--bg); color: #fff; font-family: 'Inter', sans-serif; margin: 0; padding: 20px; overflow-x: hidden; }
+        .axiom-grid { display: grid; grid-template-columns: 1fr; gap: 20px; max-width: 800px; margin: 0 auto; }
+        
+        /* Input & Controls */
+        .panel { background: #0d0d0d; border: 1px solid #1a1a1a; padding: 20px; border-radius: 12px; }
+        input { width: 100%; padding: 12px; background: #000; border: 1px solid #333; color: var(--glow); border-radius: 6px; box-sizing: border-box; margin-bottom: 10px; }
+        .btn { padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .btn-main { background: var(--glow); color: #000; width: 100%; }
+        
+        /* Library List */
+        .library-item { display: flex; align-items: center; justify-content: space-between; background: #111; padding: 15px; border-radius: 8px; margin-top: 10px; border-left: 3px solid var(--glow); }
+        .file-info { flex-grow: 1; margin-right: 15px; }
+        .file-name { font-size: 14px; color: #eee; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+        .file-meta { font-size: 11px; color: #555; }
+        
+        /* Native Player */
+        #player-vessel { display: none; margin-top: 20px; width: 100%; border-radius: 12px; overflow: hidden; background: #000; }
+        video { width: 100%; aspect-ratio: 16/9; }
+
+        /* Confirmation Overlay (On-screen, No popups) */
+        #confirm-box { display: none; position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #ff4444; padding: 20px; border-radius: 12px; z-index: 100; width: 90%; max-width: 400px; text-align: center; }
+        
+        .action-btns { display: flex; gap: 10px; }
+        .btn-play { background: #222; color: var(--glow); border: 1px solid var(--glow); }
+        .btn-del { background: #222; color: #ff4444; border: 1px solid #333; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h2 style="margin-top:0; font-weight: 300; letter-spacing: 4px;">AXIOM_MEDIA</h2>
-        <input type="text" id="urlInput" placeholder="PASTE MEDIA LINK HERE...">
-        <div class="btn-group">
-            <button class="btn-vid" onclick="process('video')">Download MP4</button>
-            <button class="btn-aud" onclick="process('audio')">Extract MP3</button>
+
+<div class="axiom-grid">
+    <div class="panel">
+        <h2 style="letter-spacing: 5px; color: var(--glow); margin-top:0;">AXIOM_MEDIA</h2>
+        <input type="text" id="urlInput" placeholder="PASTE_SOURCE_URL">
+        <div class="action-btns">
+            <button class="btn btn-main" onclick="download()">INGEST_MEDIA</button>
+            <button class="btn btn-del" onclick="showClearConfirm()" style="flex: 0.3;">CLEAR_ALL</button>
         </div>
-        <div id="status">READY_SUBSTRATE // WAITING_FOR_INPUT</div>
-        <div class="progress-bar" id="progress"></div>
     </div>
 
-    <script type="module">
-        import init from './pkg/axiom_media.js';
-        
-        const { FFmpeg } = FFmpegWasm;
-        const { fetchFile } = FFmpegUtil;
-        let ffmpeg = null;
+    <div id="player-vessel">
+        <video id="axiomPlayer" controls></video>
+        <div style="padding: 10px; background: #111; font-size: 12px; color: var(--glow);" id="now-playing">NOW_PLAYING: None</div>
+    </div>
 
-        async function boot() {
-            await init();
-            ffmpeg = new FFmpeg();
-            document.getElementById('status').innerText = "SYSTEM_LOADED // ENGINE_READY";
+    <div id="library-container">
+        <h4 style="color: #444; margin-bottom: 5px;">LOCAL_VFS_LIBRARY</h4>
+        <div id="file-list"></div>
+    </div>
+</div>
+
+<div id="confirm-box">
+    <div style="margin-bottom: 15px;">PERMANENTLY ERASE ALL VFS DATA?</div>
+    <div class="action-btns">
+        <button class="btn" onclick="hideConfirm()" style="background: #000; color: #fff; flex: 1;">CANCEL</button>
+        <button class="btn" onclick="clearLibrary()" style="background: #fff; color: #000; flex: 1;">CONFIRM</button>
+    </div>
+</div>
+
+<script type="module">
+    const worker = new Worker('vfs_worker.js');
+    const listDiv = document.getElementById('file-list');
+    const player = document.getElementById('axiomPlayer');
+    const vessel = document.getElementById('player-vessel');
+
+    // Refresh Library List
+    function refresh() { worker.postMessage({ type: "LIST" }); }
+
+    worker.onmessage = async (e) => {
+        if (e.data.type === "LIBRARY_LIST") {
+            listDiv.innerHTML = "";
+            e.data.files.forEach(file => {
+                const item = document.createElement('div');
+                item.className = 'library-item';
+                item.innerHTML = `
+                    <div class="file-info">
+                        <div class="file-name">${file.name}</div>
+                        <div class="file-meta">${(file.size / 1024 / 1024).toFixed(2)} MB</div>
+                    </div>
+                    <div class="action-btns">
+                        <button class="btn btn-play" onclick="playFile('${file.name}')">PLAY</button>
+                        <button class="btn btn-del" onclick="deleteFile('${file.name}')">X</button>
+                    </div>
+                `;
+                listDiv.appendChild(item);
+            });
         }
+        if (e.data.type.includes("COMPLETE") || e.data.type.includes("CLEARED")) refresh();
+    };
 
-        window.process = async (mode) => {
-            const url = document.getElementById('urlInput').value;
-            if(!url) return alert("Please enter a URL");
-            
-            const log = (m) => document.getElementById('status').innerText = m;
-            const prog = (p) => document.getElementById('progress').style.width = p + "%";
-            
-            log("INITIALIZING_PROXY_TUNNEL...");
-            prog(20);
+    window.download = async () => {
+        const url = document.getElementById('urlInput').value;
+        const name = "media_" + Date.now() + ".mp4";
+        const resp = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent(url));
+        const blob = await resp.blob();
+        worker.postMessage({ type: "WRITE", name, payload: await blob.arrayBuffer() });
+    };
 
-            try {
-                // Use a proxy to fetch the media (This is the bridge for non-tech users)
-                // Note: For a production app, you'd point this to a robust downloader API
-                const proxyUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(url);
-                const response = await fetch(proxyUrl);
-                const blob = await response.blob();
-                
-                prog(50);
-                
-                if(mode === 'video') {
-                    log("STREAM_CAPTURED // SAVING_TO_VFS");
-                    const downloadUrl = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = downloadUrl;
-                    a.download = "axiom_media_file.mp4";
-                    document.body.appendChild(a);
-                    a.click();
-                    log("DOWNLOAD_COMPLETE");
-                    prog(100);
-                } else {
-                    log("STARTING_EXTRACTION_ENGINE...");
-                    if(!ffmpeg.loaded) await ffmpeg.load();
-                    
-                    await ffmpeg.writeFile('input_file', await fetchFile(blob));
-                    
-                    // The magic: Extracting MP3 from any video format
-                    await ffmpeg.exec(['-i', 'input_file', '-vn', '-ab', '192k', '-ar', '44100', '-y', 'output.mp3']);
-                    
-                    const data = await ffmpeg.readFile('output.mp3');
-                    const audioBlob = new Blob([data.buffer], { type: 'audio/mp3' });
-                    const audioUrl = URL.createObjectURL(audioBlob);
-                    
-                    const a = document.createElement('a');
-                    a.href = audioUrl;
-                    a.download = "extracted_audio.mp3";
-                    a.click();
-                    
-                    log("EXTRACTION_COMPLETE // MP3_SAVED");
-                    prog(100);
-                }
-            } catch (e) {
-                log("FATAL_ERROR: " + e.message);
-                console.error(e);
-            }
-        };
+    window.playFile = async (name) => {
+        const root = await navigator.storage.getDirectory();
+        const handle = await root.getFileHandle(name);
+        const file = await handle.getFile();
+        const url = URL.createObjectURL(file);
+        
+        player.src = url;
+        vessel.style.display = "block";
+        document.getElementById('now-playing').innerText = "NOW_PLAYING: " + name;
+        player.play();
+    };
 
-        boot();
-    </script>
+    window.deleteFile = (name) => { worker.postMessage({ type: "DELETE", name }); };
+    
+    window.showClearConfirm = () => { document.getElementById('confirm-box').style.display = 'block'; };
+    window.hideConfirm = () => { document.getElementById('confirm-box').style.display = 'none'; };
+    window.clearLibrary = () => { 
+        worker.postMessage({ type: "CLEAR_ALL" });
+        hideConfirm();
+        vessel.style.display = "none";
+    };
+
+    refresh(); // Initial load
+</script>
 </body>
 </html>
