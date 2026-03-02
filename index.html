@@ -1,24 +1,108 @@
 
 <!DOCTYPE html>
-<html>
-<head><title>Axiom Media</title></head>
-<body style="background:#000; color:#00ffcc; font-family:monospace; padding:30px;">
-    <h1>AXIOM_MEDIA // VFS_SUBSTRATE</h1>
-    <div id="status">INITIALIZING CORE...</div>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Axiom Media Engine</title>
+    <!-- Load FFmpeg.wasm from CDN -->
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
+    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+    <style>
+        body { background: #080808; color: #00ffaa; font-family: 'Segoe UI', monospace; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        .container { width: 90%; max-width: 500px; text-align: center; border: 1px solid #111; padding: 40px; border-radius: 12px; background: #0d0d0d; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        input { width: 100%; padding: 15px; background: #151515; border: 1px solid #222; border-radius: 8px; color: #fff; margin-bottom: 20px; box-sizing: border-box; font-size: 16px; outline: none; transition: 0.3s; }
+        input:focus { border-color: #00ffaa; box-shadow: 0 0 10px #00ffaa33; }
+        .btn-group { display: flex; gap: 10px; }
+        button { flex: 1; padding: 15px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; transition: 0.2s; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
+        .btn-vid { background: #00ffaa; color: #000; }
+        .btn-aud { background: transparent; color: #00ffaa; border: 1px solid #00ffaa; }
+        button:hover { opacity: 0.8; transform: translateY(-2px); }
+        #status { margin-top: 25px; font-size: 12px; color: #666; letter-spacing: 1px; }
+        .progress-bar { height: 2px; width: 0%; background: #00ffaa; margin-top: 10px; transition: 0.3s; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2 style="margin-top:0; font-weight: 300; letter-spacing: 4px;">AXIOM_MEDIA</h2>
+        <input type="text" id="urlInput" placeholder="PASTE MEDIA LINK HERE...">
+        <div class="btn-group">
+            <button class="btn-vid" onclick="process('video')">Download MP4</button>
+            <button class="btn-aud" onclick="process('audio')">Extract MP3</button>
+        </div>
+        <div id="status">READY_SUBSTRATE // WAITING_FOR_INPUT</div>
+        <div class="progress-bar" id="progress"></div>
+    </div>
+
     <script type="module">
-        import init, { MediaKernel } from './pkg/axiom_media.js';
-        const log = m => document.getElementById('status').innerText = m;
+        import init from './pkg/axiom_media.js';
         
+        const { FFmpeg } = FFmpegWasm;
+        const { fetchFile } = FFmpegUtil;
+        let ffmpeg = null;
+
         async function boot() {
-            const wasm = await init();
-            const worker = new Worker('vfs_worker.js');
-            worker.postMessage({ type: "INIT", name: "substrate.mp4" });
-            
-            worker.onmessage = (e) => {
-                if(e.data.status === "READY") log("CORE READY: VFS LINKED (OPFS)");
-                if(e.data.status === "WRITTEN") log("VFS COMMITTED: " + e.data.size + " BYTES");
-            };
+            await init();
+            ffmpeg = new FFmpeg();
+            document.getElementById('status').innerText = "SYSTEM_LOADED // ENGINE_READY";
         }
+
+        window.process = async (mode) => {
+            const url = document.getElementById('urlInput').value;
+            if(!url) return alert("Please enter a URL");
+            
+            const log = (m) => document.getElementById('status').innerText = m;
+            const prog = (p) => document.getElementById('progress').style.width = p + "%";
+            
+            log("INITIALIZING_PROXY_TUNNEL...");
+            prog(20);
+
+            try {
+                // Use a proxy to fetch the media (This is the bridge for non-tech users)
+                // Note: For a production app, you'd point this to a robust downloader API
+                const proxyUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(url);
+                const response = await fetch(proxyUrl);
+                const blob = await response.blob();
+                
+                prog(50);
+                
+                if(mode === 'video') {
+                    log("STREAM_CAPTURED // SAVING_TO_VFS");
+                    const downloadUrl = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = downloadUrl;
+                    a.download = "axiom_media_file.mp4";
+                    document.body.appendChild(a);
+                    a.click();
+                    log("DOWNLOAD_COMPLETE");
+                    prog(100);
+                } else {
+                    log("STARTING_EXTRACTION_ENGINE...");
+                    if(!ffmpeg.loaded) await ffmpeg.load();
+                    
+                    await ffmpeg.writeFile('input_file', await fetchFile(blob));
+                    
+                    // The magic: Extracting MP3 from any video format
+                    await ffmpeg.exec(['-i', 'input_file', '-vn', '-ab', '192k', '-ar', '44100', '-y', 'output.mp3']);
+                    
+                    const data = await ffmpeg.readFile('output.mp3');
+                    const audioBlob = new Blob([data.buffer], { type: 'audio/mp3' });
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    
+                    const a = document.createElement('a');
+                    a.href = audioUrl;
+                    a.download = "extracted_audio.mp3";
+                    a.click();
+                    
+                    log("EXTRACTION_COMPLETE // MP3_SAVED");
+                    prog(100);
+                }
+            } catch (e) {
+                log("FATAL_ERROR: " + e.message);
+                console.error(e);
+            }
+        };
+
         boot();
     </script>
 </body>
