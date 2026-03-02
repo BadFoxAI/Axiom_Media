@@ -4,53 +4,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Axiom Media // Dev Mode</title>
+    <title>Axiom Media System</title>
+    <!-- We keep these small JS wrappers on CDN as they don't trigger the Worker Security Error -->
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
+    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
     <style>
-        body { background: #f0f1f3; color: #1a1c1e; font-family: -apple-system, system-ui, sans-serif; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column; }
-        .stage { width: 480px; background: #ffffff; border: 1px solid #d1d5db; padding: 40px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        body { background: #f0f1f3; color: #1a1c1e; font-family: -apple-system, sans-serif; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column; }
+        .stage { width: 440px; background: #ffffff; border: 1px solid #d1d5db; padding: 40px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
         .label { font-size: 10px; font-weight: 700; color: #9ca3af; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 24px; text-align: center; }
         .progress-track { width: 100%; height: 2px; background: #e5e7eb; margin: 32px 0; position: relative; }
-        .progress-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background: #4b5563; transition: width 0.4s cubic-bezier(0.1, 0.7, 0.1, 1); }
-        .status-text { font-size: 13px; color: #6b7280; text-align: center; height: 1.5em; font-weight: 400; }
-        
-        #dev-log { width: 480px; margin-top: 24px; font-family: "SF Mono", "Roboto Mono", monospace; font-size: 10px; color: #999; max-height: 120px; overflow-y: auto; line-height: 1.5; border-top: 1px solid #e5e7eb; padding-top: 12px; }
-        .log-entry { margin-bottom: 3px; border-left: 1px solid #e5e7eb; padding-left: 8px; }
-        .log-err { color: #d32f2f; border-left-color: #d32f2f; }
-        
-        #audio-wrap { margin-top: 24px; display: none; }
-        audio { width: 100%; height: 36px; filter: grayscale(1) opacity(0.8); }
+        .progress-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background: #4b5563; transition: width 0.4s; }
+        .status-text { font-size: 13px; color: #6b7280; text-align: center; height: 1.5em; }
+        #audio-wrap { margin-top: 24px; display: none; text-align: center; }
+        audio { width: 100%; height: 36px; filter: grayscale(1); }
+        #dev-log { width: 440px; margin-top: 20px; font-family: monospace; font-size: 9px; color: #bbb; max-height: 80px; overflow-y: auto; }
     </style>
 </head>
 <body>
 
 <div class="stage">
-    <div class="label">Axiom Media // ESM Substrate</div>
-    <div id="status" class="status-text">Booting Engine...</div>
+    <div class="label">Axiom Media // Same-Origin Core</div>
+    <div id="status" class="status-text">Synchronizing...</div>
     <div class="progress-track">
         <div id="bar" class="progress-fill"></div>
     </div>
     <div id="audio-wrap">
+        <div style="font-size:11px; color:#9ca3af; margin-bottom:10px;">1982 - MISS KITTIN & THE HACKER</div>
         <audio id="player" controls></audio>
     </div>
 </div>
-
 <div id="dev-log"></div>
 
-<script type="module">
-    // Using direct ESM imports to avoid "FFmpegWasm is undefined"
-    import { FFmpeg } from 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/+esm';
-    import { fetchFile, toBlobURL } from 'https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/+esm';
-
-    const logDiv = document.getElementById('dev-log');
-    
-    function report(msg, type = 'info') {
-        const time = new Date().toISOString().split('T')[1].split('Z')[0];
-        const entry = document.createElement('div');
-        entry.className = 'log-entry' + (type === 'err' ? ' log-err' : '');
-        entry.innerText = `[${time}] ${msg}`;
-        logDiv.prepend(entry);
-        console.log(`[AXIOM_${type.toUpperCase()}] ${msg}`);
-    }
+<script>
+    const report = (m) => {
+        const d = document.getElementById('dev-log');
+        d.innerHTML = `<div>> ${m}</div>` + d.innerHTML;
+        console.log(m);
+    };
 
     const updateUI = (msg, percent) => {
         document.getElementById('status').innerText = msg;
@@ -59,65 +49,51 @@
     };
 
     async function start() {
-        report("ENGINE_INITIALIZING");
+        const { FFmpeg } = FFmpegWasm;
+        const { fetchFile } = FFmpegUtil;
         const ffmpeg = new FFmpeg();
 
-        // FFmpeg Telemetry
-        ffmpeg.on('log', ({ message }) => report(`CORE: ${message}`));
-        ffmpeg.on('progress', ({ progress }) => {
-            const p = Math.round(75 + (progress * 25));
-            document.getElementById('bar').style.width = p + '%';
-        });
+        ffmpeg.on('log', ({ message }) => report(message));
 
         try {
-            updateUI("Loading Codecs", 15);
-            const coreURL = await toBlobURL('https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.js', 'text/javascript');
-            const wasmURL = await toBlobURL('https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.wasm', 'application/wasm');
+            updateUI("Loading Local Substrate", 20);
             
-            await ffmpeg.load({ coreURL, wasmURL });
-            report("WASM_LOAD_SUCCESS");
-
-            updateUI("Handshaking Bridge", 30);
-            const bridge = await fetch("https://co.wuk.sh/api/json", {
-                method: "POST",
-                headers: { "Content-Type": "application/json", "Accept": "application/json" },
-                body: JSON.stringify({ 
-                    url: "https://www.youtube.com/watch?v=2hs1wwuwc5I", 
-                    downloadMode: "audio",
-                    audioFormat: "mp3"
-                })
+            // POINTING TO LOCAL FILES ON YOUR DOMAIN
+            await ffmpeg.load({
+                coreURL: './ffmpeg-core.js',
+                wasmURL: './ffmpeg-core.wasm',
             });
             
+            updateUI("Connecting Source", 40);
+            const bridge = await fetch("https://co.wuk.sh/api/json", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ url: "https://www.youtube.com/watch?v=2hs1wwuwc5I", downloadMode: "audio" })
+            });
             const stream = await bridge.json();
-            if(!stream.url) throw `Source rejected: ${JSON.stringify(stream)}`;
-
-            updateUI("Streaming to VFS", 50);
-            const response = await fetch(stream.url);
-            const blob = await response.blob();
-            report(`VFS_INGEST: ${blob.size} bytes`);
-
-            updateUI("Processing Substrate", 75);
+            
+            updateUI("Ingesting Stream", 60);
+            const blob = await fetch(stream.url).then(r => r.blob());
+            
+            updateUI("Transcoding", 80);
             await ffmpeg.writeFile('in', await fetchFile(blob));
             await ffmpeg.exec(['-i', 'in', '-b:a', '192k', 'out.mp3']);
             
-            report("GENERATING_PLAYBACK_BLOB");
             const data = await ffmpeg.readFile('out.mp3');
             const url = URL.createObjectURL(new Blob([data.buffer], { type: 'audio/mp3' }));
             
-            const player = document.getElementById('player');
-            player.src = url;
-            
-            updateUI("Active // Playing", 100);
+            document.getElementById('player').src = url;
             document.getElementById('audio-wrap').style.display = 'block';
-            player.play().catch(() => report("USER_GATED: Click to hear audio"));
+            updateUI("Ready", 100);
+            document.getElementById('player').play();
 
         } catch (e) {
-            updateUI("Engine Failure", 0);
-            report(`ERROR: ${e}`, "err");
+            updateUI("System Error", 0);
+            report("FATAL: " + e);
         }
     }
 
-    window.addEventListener('load', start);
+    window.onload = start;
 </script>
 </body>
 </html>
