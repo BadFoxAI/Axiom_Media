@@ -4,129 +4,136 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Axiom Media Library</title>
+    <title>Axiom Media</title>
     <style>
-        :root { --glow: #00ffaa; --bg: #050505; }
-        body { background: var(--bg); color: #fff; font-family: 'Inter', sans-serif; margin: 0; padding: 20px; overflow-x: hidden; }
-        .axiom-grid { display: grid; grid-template-columns: 1fr; gap: 20px; max-width: 800px; margin: 0 auto; }
+        :root { --slate: #1a1c1e; --neutral-grey: #2d2f31; --border: #3f4144; --text: #e1e3e5; --accent: #90a4ae; }
+        body { background: var(--slate); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
         
-        /* Input & Controls */
-        .panel { background: #0d0d0d; border: 1px solid #1a1a1a; padding: 20px; border-radius: 12px; }
-        input { width: 100%; padding: 12px; background: #000; border: 1px solid #333; color: var(--glow); border-radius: 6px; box-sizing: border-box; margin-bottom: 10px; }
-        .btn { padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; transition: 0.2s; }
-        .btn-main { background: var(--glow); color: #000; width: 100%; }
+        .workspace { width: 100%; max-width: 900px; padding: 40px 20px; box-sizing: border-box; }
         
-        /* Library List */
-        .library-item { display: flex; align-items: center; justify-content: space-between; background: #111; padding: 15px; border-radius: 8px; margin-top: 10px; border-left: 3px solid var(--glow); }
-        .file-info { flex-grow: 1; margin-right: 15px; }
-        .file-name { font-size: 14px; color: #eee; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
-        .file-meta { font-size: 11px; color: #555; }
-        
-        /* Native Player */
-        #player-vessel { display: none; margin-top: 20px; width: 100%; border-radius: 12px; overflow: hidden; background: #000; }
-        video { width: 100%; aspect-ratio: 16/9; }
+        /* Neutral Header */
+        .header { border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-end; }
+        .title { font-size: 14px; font-weight: 600; letter-spacing: 2px; color: var(--accent); }
+        .status-dot { font-size: 10px; color: #666; text-transform: uppercase; }
 
-        /* Confirmation Overlay (On-screen, No popups) */
-        #confirm-box { display: none; position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #ff4444; padding: 20px; border-radius: 12px; z-index: 100; width: 90%; max-width: 400px; text-align: center; }
+        /* Professional Player Area */
+        .viewer-container { width: 100%; background: #000; border-radius: 4px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.4); margin-bottom: 30px; aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center; }
+        video { width: 100%; height: 100%; outline: none; }
+
+        /* Library List (Neutral Slate) */
+        .library-shelf { width: 100%; }
+        .item { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--neutral-grey); border: 1px solid var(--border); margin-bottom: 8px; border-radius: 4px; transition: background 0.2s; }
+        .item:hover { background: #37393b; }
+        .item-info { font-size: 13px; }
+        .item-meta { font-size: 11px; color: #777; margin-top: 4px; }
         
-        .action-btns { display: flex; gap: 10px; }
-        .btn-play { background: #222; color: var(--glow); border: 1px solid var(--glow); }
-        .btn-del { background: #222; color: #ff4444; border: 1px solid #333; }
+        /* Control Buttons */
+        .action-area { display: flex; gap: 8px; }
+        .btn { padding: 6px 14px; font-size: 11px; border-radius: 3px; cursor: pointer; border: 1px solid var(--border); background: var(--slate); color: var(--text); text-transform: uppercase; transition: all 0.2s; }
+        .btn:hover { background: var(--accent); color: var(--slate); border-color: var(--accent); }
+        
+        /* Auto-Loader Progress */
+        .load-bar { position: fixed; top: 0; left: 0; height: 2px; width: 0%; background: var(--accent); transition: width 0.4s; }
     </style>
 </head>
 <body>
 
-<div class="axiom-grid">
-    <div class="panel">
-        <h2 style="letter-spacing: 5px; color: var(--glow); margin-top:0;">AXIOM_MEDIA</h2>
-        <input type="text" id="urlInput" placeholder="PASTE_SOURCE_URL">
-        <div class="action-btns">
-            <button class="btn btn-main" onclick="download()">INGEST_MEDIA</button>
-            <button class="btn btn-del" onclick="showClearConfirm()" style="flex: 0.3;">CLEAR_ALL</button>
-        </div>
+<div class="load-bar" id="loadBar"></div>
+
+<div class="workspace">
+    <div class="header">
+        <div class="title">AXIOM_MEDIA // VFS_SUBSTRATE</div>
+        <div class="status-dot" id="sysStatus">Initializing...</div>
     </div>
 
-    <div id="player-vessel">
-        <video id="axiomPlayer" controls></video>
-        <div style="padding: 10px; background: #111; font-size: 12px; color: var(--glow);" id="now-playing">NOW_PLAYING: None</div>
+    <div class="viewer-container">
+        <video id="mainPlayer" controls playsinline muted></video>
     </div>
 
-    <div id="library-container">
-        <h4 style="color: #444; margin-bottom: 5px;">LOCAL_VFS_LIBRARY</h4>
-        <div id="file-list"></div>
-    </div>
-</div>
-
-<div id="confirm-box">
-    <div style="margin-bottom: 15px;">PERMANENTLY ERASE ALL VFS DATA?</div>
-    <div class="action-btns">
-        <button class="btn" onclick="hideConfirm()" style="background: #000; color: #fff; flex: 1;">CANCEL</button>
-        <button class="btn" onclick="clearLibrary()" style="background: #fff; color: #000; flex: 1;">CONFIRM</button>
+    <div class="library-shelf">
+        <div id="fileList"></div>
     </div>
 </div>
 
 <script type="module">
     const worker = new Worker('vfs_worker.js');
-    const listDiv = document.getElementById('file-list');
-    const player = document.getElementById('axiomPlayer');
-    const vessel = document.getElementById('player-vessel');
+    const player = document.getElementById('mainPlayer');
+    const sysStatus = document.getElementById('sysStatus');
+    const loadBar = document.getElementById('loadBar');
+    const TEST_URL = "https://download.samplelib.com/mp4/sample-5s.mp4";
 
-    // Refresh Library List
-    function refresh() { worker.postMessage({ type: "LIST" }); }
+    function updateStatus(msg, progress) {
+        sysStatus.innerText = msg;
+        if(progress) loadBar.style.width = progress + "%";
+    }
 
     worker.onmessage = async (e) => {
         if (e.data.type === "LIBRARY_LIST") {
-            listDiv.innerHTML = "";
-            e.data.files.forEach(file => {
-                const item = document.createElement('div');
-                item.className = 'library-item';
-                item.innerHTML = `
-                    <div class="file-info">
-                        <div class="file-name">${file.name}</div>
-                        <div class="file-meta">${(file.size / 1024 / 1024).toFixed(2)} MB</div>
-                    </div>
-                    <div class="action-btns">
-                        <button class="btn btn-play" onclick="playFile('${file.name}')">PLAY</button>
-                        <button class="btn btn-del" onclick="deleteFile('${file.name}')">X</button>
-                    </div>
-                `;
-                listDiv.appendChild(item);
-            });
+            renderLibrary(e.data.files);
         }
-        if (e.data.type.includes("COMPLETE") || e.data.type.includes("CLEARED")) refresh();
+        if (e.data.type === "SYNC_COMPLETE") {
+            updateStatus("VFS_SYNC_READY", 100);
+            setTimeout(() => loadBar.style.width = "0%", 1000);
+            autoPlay(e.data.name);
+            refresh();
+        }
+        if (e.data.type === "DELETE_COMPLETE") refresh();
     };
 
-    window.download = async () => {
-        const url = document.getElementById('urlInput').value;
-        const name = "media_" + Date.now() + ".mp4";
-        const resp = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent(url));
-        const blob = await resp.blob();
-        worker.postMessage({ type: "WRITE", name, payload: await blob.arrayBuffer() });
-    };
-
-    window.playFile = async (name) => {
+    async function autoPlay(name) {
         const root = await navigator.storage.getDirectory();
         const handle = await root.getFileHandle(name);
         const file = await handle.getFile();
-        const url = URL.createObjectURL(file);
-        
-        player.src = url;
-        vessel.style.display = "block";
-        document.getElementById('now-playing').innerText = "NOW_PLAYING: " + name;
-        player.play();
-    };
+        player.src = URL.createObjectURL(file);
+        player.muted = false; // Unmute for test if browser allows
+        player.play().catch(err => console.log("Autoplay waiting for interaction"));
+    }
 
-    window.deleteFile = (name) => { worker.postMessage({ type: "DELETE", name }); };
-    
-    window.showClearConfirm = () => { document.getElementById('confirm-box').style.display = 'block'; };
-    window.hideConfirm = () => { document.getElementById('confirm-box').style.display = 'none'; };
-    window.clearLibrary = () => { 
-        worker.postMessage({ type: "CLEAR_ALL" });
-        hideConfirm();
-        vessel.style.display = "none";
-    };
+    function renderLibrary(files) {
+        const container = document.getElementById('fileList');
+        container.innerHTML = files.length ? "" : "<div style='color:#555; font-size:12px;'>VFS EMPTY</div>";
+        files.forEach(file => {
+            const div = document.createElement('div');
+            div.className = 'item';
+            div.innerHTML = `
+                <div class="item-info">
+                    <div>${file.name}</div>
+                    <div class="item-meta">${(file.size/1024/1024).toFixed(2)} MB // RAW_DATA</div>
+                </div>
+                <div class="action-area">
+                    <button class="btn" onclick="playNative('${file.name}')">Stream</button>
+                    <button class="btn" onclick="remove('${file.name}')">Purge</button>
+                </div>
+            `;
+            container.appendChild(div);
+        });
+    }
 
-    refresh(); // Initial load
+    window.playNative = async (name) => { autoPlay(name); };
+    window.remove = (name) => { worker.postMessage({ type: "DELETE", name }); };
+    function refresh() { worker.postMessage({ type: "LIST" }); }
+
+    // AUTO-INGEST LOGIC
+    async function initAxiom() {
+        updateStatus("POLLING_REMOTE", 10);
+        try {
+            const resp = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent(TEST_URL));
+            updateStatus("STREAM_INGEST", 40);
+            const blob = await resp.blob();
+            updateStatus("WRITING_VFS", 70);
+            worker.postMessage({ 
+                type: "WRITE", 
+                name: "test_auto_capture.mp4", 
+                payload: await blob.arrayBuffer() 
+            });
+        } catch(e) {
+            updateStatus("SOURCE_OFFLINE", 0);
+        }
+    }
+
+    // Kick off
+    refresh();
+    initAxiom();
 </script>
 </body>
 </html>
