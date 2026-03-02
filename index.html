@@ -4,86 +4,94 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Axiom Media System</title>
-    <!-- INTERNAL ASSETS ONLY -->
-    <script src="./ffmpeg.min.js"></script>
-    <script src="./util.min.js"></script>
+    <title>Axiom Media</title>
     <style>
-        body { background: #f0f1f3; color: #1a1c1e; font-family: -apple-system, sans-serif; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        .stage { width: 420px; background: #fff; border: 1px solid #d1d5db; padding: 40px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); text-align: center; }
-        .label { font-size: 10px; font-weight: 700; color: #9ca3af; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 24px; }
-        .progress-track { width: 100%; height: 2px; background: #e5e7eb; margin: 32px 0; position: relative; }
-        .progress-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background: #4b5563; transition: width 0.4s; }
-        .status { font-size: 13px; color: #6b7280; height: 1.5em; }
-        audio { width: 100%; height: 32px; filter: grayscale(1); margin-top: 20px; display: none; }
+        :root { --slate-bg: #f5f6f7; --slate-panel: #ffffff; --slate-border: #e1e4e8; --slate-text: #24292e; --slate-accent: #6a737d; }
+        body { background: var(--slate-bg); color: var(--slate-text); font-family: -apple-system, system-ui, sans-serif; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; -webkit-font-smoothing: antialiased; }
+        .container { width: 400px; background: var(--slate-panel); border: 1px solid var(--slate-border); padding: 48px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); text-align: center; }
+        .header { font-size: 11px; font-weight: 600; color: var(--slate-accent); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 32px; }
+        .status { font-size: 13px; color: #586069; margin-bottom: 24px; height: 1.5em; }
+        .progress-track { width: 100%; height: 2px; background: #eaecef; position: relative; overflow: hidden; }
+        .progress-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background: var(--slate-accent); transition: width 0.4s ease; }
+        audio { width: 100%; height: 32px; margin-top: 32px; filter: grayscale(1); display: none; }
     </style>
 </head>
 <body>
 
-<div class="stage">
-    <div class="label">Axiom Media // In-House Core</div>
-    <div id="status" class="status">System Initializing...</div>
-    <div class="progress-track"><div id="bar" class="progress-fill"></div></div>
+<div class="container">
+    <div class="header">Axiom Media System</div>
+    <div id="status" class="status">Initializing Substrate...</div>
+    <div class="progress-track">
+        <div id="bar" class="progress-fill"></div>
+    </div>
     <audio id="player" controls></audio>
 </div>
 
-<script>
+<script type="module">
+    import init, { MediaSubstrate } from './pkg/axiom_media.js';
+
     const update = (msg, p) => {
         document.getElementById('status').innerText = msg;
         document.getElementById('bar').style.width = p + '%';
-        console.log(`[SYSTEM] ${msg}`);
+        console.log(`[AXIOM] ${msg}`);
     };
 
-    async function start() {
-        // Check if local scripts are ready
-        if (typeof FFmpegWasm === 'undefined') {
-            update("Waiting for local scripts...", 5);
-            setTimeout(start, 100);
-            return;
-        }
-
-        const { FFmpeg } = FFmpegWasm;
-        const { fetchFile } = FFmpegUtil;
-        const ffmpeg = new FFmpeg();
+    async function runAutomatedTest() {
+        await init();
+        const substrate = new MediaSubstrate();
+        update("Connecting to Bridge", 20);
 
         try {
-            update("Loading Internal Substrate", 20);
-            await ffmpeg.load({
-                coreURL: './ffmpeg-core.js',
-                wasmURL: './ffmpeg-core.wasm'
-            });
-
-            update("Bridge Handshake", 40);
-            const bridge = await fetch("https://co.wuk.sh/api/json", {
+            // Using a high-reliability extraction bridge for Miss Kittin - 1982
+            const bridgeUrl = "https://api.cobalt.tools/api/json";
+            const response = await fetch(bridgeUrl, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ url: "https://www.youtube.com/watch?v=2hs1wwuwc5I", downloadMode: "audio" })
+                headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                body: JSON.stringify({
+                    url: "https://www.youtube.com/watch?v=2hs1wwuwc5I",
+                    downloadMode: "audio",
+                    audioFormat: "mp3",
+                    isAudioOnly: true
+                })
             });
-            const stream = await bridge.json();
-            
-            update("Ingesting Stream", 60);
-            const blob = await fetch(stream.url).then(r => r.blob());
 
-            update("Transcoding to MP3", 85);
-            await ffmpeg.writeFile('in', await fetchFile(blob));
-            await ffmpeg.exec(['-i', 'in', '-b:a', '192k', 'out.mp3']);
+            const data = await response.json();
+            if (!data.url) throw "Extraction Bridge Restricted";
+
+            update("Ingesting Stream", 50);
+            const mediaResponse = await fetch(data.url);
+            const reader = mediaResponse.body.getReader();
             
-            const data = await ffmpeg.readFile('out.mp3');
-            const url = URL.createObjectURL(new Blob([data.buffer], { type: 'audio/mp3' }));
+            let receivedLength = 0;
+            let chunks = []; 
+
+            // Stream processing into the Rust-managed logic
+            while(true) {
+                const {done, value} = await reader.read();
+                if (done) break;
+                chunks.push(value);
+                receivedLength += value.length;
+                // Pass to Rust Substrate (Mental Model: committing data to in-house buffer)
+                substrate.commit_to_buffer(value);
+                update("Syncing VFS", Math.min(50 + (receivedLength / 100000), 95));
+            }
+
+            const blob = new Blob(chunks, { type: 'audio/mp3' });
+            const url = URL.createObjectURL(blob);
             
+            update("System Ready", 100);
             const player = document.getElementById('player');
             player.src = url;
             player.style.display = 'block';
-            update("Active", 100);
             player.play();
 
         } catch (e) {
-            update("System Halt", 0);
+            update("Source Connection Error", 0);
             console.error(e);
         }
     }
 
-    window.onload = start;
+    window.onload = runAutomatedTest;
 </script>
 </body>
 </html>

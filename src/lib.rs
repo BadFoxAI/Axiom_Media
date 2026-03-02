@@ -2,21 +2,22 @@
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
-pub struct MediaKernel {
-    buffer: Vec<u8>,
+pub struct MediaSubstrate {
+    data: Vec<u8>,
 }
 
 #[wasm_bindgen]
-impl MediaKernel {
+impl MediaSubstrate {
     #[wasm_bindgen(constructor)]
-    pub fn new(size: usize) -> MediaKernel {
-        MediaKernel { buffer: vec![0u8; size] }
+    pub fn new() -> MediaSubstrate {
+        MediaSubstrate { data: Vec::new() }
     }
 
-    pub fn get_ptr(&self) -> *const u8 { self.buffer.as_ptr() }
-    
-    // SIMD Optimized "Scrub" - can be used for simple bitwise transformations
-    pub fn apply_mask(&mut self, mask: u8) {
-        for b in self.buffer.iter_mut() { *b ^= mask; }
+    pub fn commit_to_buffer(&mut self, chunk: &[u8]) {
+        self.data.extend_from_slice(chunk);
+    }
+
+    pub fn get_size(&self) -> usize {
+        self.data.len()
     }
 }

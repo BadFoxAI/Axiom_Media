@@ -1,40 +1,39 @@
 /* @ts-self-types="./axiom_media.d.ts" */
 
-export class MediaKernel {
+export class MediaSubstrate {
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
         this.__wbg_ptr = 0;
-        MediaKernelFinalization.unregister(this);
+        MediaSubstrateFinalization.unregister(this);
         return ptr;
     }
     free() {
         const ptr = this.__destroy_into_raw();
-        wasm.__wbg_mediakernel_free(ptr, 0);
+        wasm.__wbg_mediasubstrate_free(ptr, 0);
     }
     /**
-     * @param {number} mask
+     * @param {Uint8Array} chunk
      */
-    apply_mask(mask) {
-        wasm.mediakernel_apply_mask(this.__wbg_ptr, mask);
+    commit_to_buffer(chunk) {
+        const ptr0 = passArray8ToWasm0(chunk, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.mediasubstrate_commit_to_buffer(this.__wbg_ptr, ptr0, len0);
     }
     /**
      * @returns {number}
      */
-    get_ptr() {
-        const ret = wasm.mediakernel_get_ptr(this.__wbg_ptr);
+    get_size() {
+        const ret = wasm.mediasubstrate_get_size(this.__wbg_ptr);
         return ret >>> 0;
     }
-    /**
-     * @param {number} size
-     */
-    constructor(size) {
-        const ret = wasm.mediakernel_new(size);
+    constructor() {
+        const ret = wasm.mediasubstrate_new();
         this.__wbg_ptr = ret >>> 0;
-        MediaKernelFinalization.register(this, this.__wbg_ptr, this);
+        MediaSubstrateFinalization.register(this, this.__wbg_ptr, this);
         return this;
     }
 }
-if (Symbol.dispose) MediaKernel.prototype[Symbol.dispose] = MediaKernel.prototype.free;
+if (Symbol.dispose) MediaSubstrate.prototype[Symbol.dispose] = MediaSubstrate.prototype.free;
 
 function __wbg_get_imports() {
     const import0 = {
@@ -58,9 +57,9 @@ function __wbg_get_imports() {
     };
 }
 
-const MediaKernelFinalization = (typeof FinalizationRegistry === 'undefined')
+const MediaSubstrateFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
-    : new FinalizationRegistry(ptr => wasm.__wbg_mediakernel_free(ptr >>> 0, 1));
+    : new FinalizationRegistry(ptr => wasm.__wbg_mediasubstrate_free(ptr >>> 0, 1));
 
 function getStringFromWasm0(ptr, len) {
     ptr = ptr >>> 0;
@@ -73,6 +72,13 @@ function getUint8ArrayMemory0() {
         cachedUint8ArrayMemory0 = new Uint8Array(wasm.memory.buffer);
     }
     return cachedUint8ArrayMemory0;
+}
+
+function passArray8ToWasm0(arg, malloc) {
+    const ptr = malloc(arg.length * 1, 1) >>> 0;
+    getUint8ArrayMemory0().set(arg, ptr / 1);
+    WASM_VECTOR_LEN = arg.length;
+    return ptr;
 }
 
 let cachedTextDecoder = new TextDecoder('utf-8', { ignoreBOM: true, fatal: true });
@@ -88,6 +94,8 @@ function decodeText(ptr, len) {
     }
     return cachedTextDecoder.decode(getUint8ArrayMemory0().subarray(ptr, ptr + len));
 }
+
+let WASM_VECTOR_LEN = 0;
 
 let wasmModule, wasm;
 function __wbg_finalize_init(instance, module) {

@@ -1,23 +1,24 @@
 /* tslint:disable */
 /* eslint-disable */
 
-export class MediaKernel {
+export class MediaSubstrate {
     free(): void;
     [Symbol.dispose](): void;
-    apply_mask(mask: number): void;
-    get_ptr(): number;
-    constructor(size: number);
+    commit_to_buffer(chunk: Uint8Array): void;
+    get_size(): number;
+    constructor();
 }
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
-    readonly __wbg_mediakernel_free: (a: number, b: number) => void;
-    readonly mediakernel_apply_mask: (a: number, b: number) => void;
-    readonly mediakernel_get_ptr: (a: number) => number;
-    readonly mediakernel_new: (a: number) => number;
+    readonly __wbg_mediasubstrate_free: (a: number, b: number) => void;
+    readonly mediasubstrate_commit_to_buffer: (a: number, b: number, c: number) => void;
+    readonly mediasubstrate_get_size: (a: number) => number;
+    readonly mediasubstrate_new: () => number;
     readonly __wbindgen_externrefs: WebAssembly.Table;
+    readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_start: () => void;
 }
 
